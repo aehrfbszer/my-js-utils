@@ -1,4 +1,4 @@
-import type {AxiosRequestConfig, AxiosRequestHeaders, Canceler} from 'axios'
+import type {AxiosRequestConfig, Canceler} from 'axios'
 import axios from 'axios'
 
 const removeAllItem = () => {
@@ -93,7 +93,7 @@ export const newAxiosRequest = ({
     const LoadingInstance = {
         _count: 0
     }
-    const pendingArrMap: Map<string, Array<(token: string) => void>> = new Map()
+    const pendingArrMap: Map<string, Array<() => void>> = new Map()
 
     const noTokenUrls = [...withoutTokenUrls]
     if (!extraConfig.loginNeedToken) {
@@ -108,8 +108,6 @@ export const newAxiosRequest = ({
             baseURL: baseUrl, // 设置统一的请求前缀
             timeout // 设置统一的超时时长
         })
-
-        let theConfig: AxiosRequestConfig
 
         const myOptions: EachRequestCustomOptions = Object.assign(
             {
@@ -157,9 +155,8 @@ export const newAxiosRequest = ({
                 }
 
                 // 自动携带token
-                if (token && !noTokenUrls.some((url) => config.url?.includes(url)) && !config.headers['Authorization'] && !myOptions.withoutToken) {
+                if (token && !noTokenUrls.some((noUrl) => config.url?.includes(noUrl)) && !myOptions.withoutToken) {
                     config.headers['Authorization'] = `Bearer ${token}`
-                    theConfig = config
                 }
 
                 return config
@@ -199,21 +196,18 @@ export const newAxiosRequest = ({
                     removeAllItem()
                     window.location.href = `${window.location.origin}/login`
                 } else if (error.response.status === 401 && count < 3) {
-                    const newConfig = theConfig as AxiosRequestConfig & {
-                        headers: AxiosRequestHeaders
-                    }
+
+                    const onceAgainRequest = () => mainAxios(axiosConfig, customOptions, count + 1)
 
                     const nowToken = getToken()
                     if (nowToken && nowToken !== token) {
-                        newConfig.headers['Authorization'] = `Bearer ${nowToken}`
-                        return service(newConfig)
+                        return onceAgainRequest()
                     }
                     const arr = pendingArrMap.get(token)
                     if (arr) {
                         return new Promise((resolve) => {
-                            arr.push((newToken: string) => {
-                                newConfig.headers['Authorization'] = `Bearer ${newToken}`
-                                resolve(service(newConfig))
+                            arr.push(() => {
+                                resolve(onceAgainRequest())
                             })
                         })
                     } else {
@@ -221,13 +215,12 @@ export const newAxiosRequest = ({
                         return mainAxios(refreshTokenUrl.axiosConfig)
                             .then((res) => {
                                 refreshTokenUrl.setToken(res)
-                                const newCount = count + 1
                                 const oldArr = pendingArrMap.get(token)
                                 oldArr?.forEach((cb) => {
-                                    cb(getToken())
+                                    cb()
                                 })
                                 pendingArrMap.delete(token)
-                                return mainAxios(axiosConfig, customOptions, newCount)
+                                return onceAgainRequest()
                             })
                             .catch(() => {
                                 if (handleMessage) {
