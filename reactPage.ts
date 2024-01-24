@@ -13,41 +13,45 @@ export const usePageChange = (
   initPage: { current: number; total: number; pageSize?: number; showSizeChanger?: boolean },
   doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>
 ) => {
+  const tempPageSize = useRef(initPage.pageSize ?? 10)
   const [pagination, setPagination] = useState({ ...initPage, showSizeChanger: !!initPage.showSizeChanger, pageSize: initPage.pageSize ?? 10 })
+  useEffect(() => {
+    tempPageSize.current = pagination.pageSize
+  }, [pagination.pageSize])
+
   const handleChange = useCallback(
     (newPage: number, newPageSize?: number) => {
       let current = newPage
-      const pageSize = newPageSize ?? pagination.pageSize
-      if (pageSize !== pagination.pageSize) {
+      const pageSize = newPageSize ?? tempPageSize.current
+      if (pageSize !== tempPageSize.current) {
         current = initPage.current
       }
       doRequest(current, pageSize)
         .then((total) => {
-          setPagination({
-            ...pagination,
+          setPagination((prevState) => ({
+            ...prevState,
             pageSize,
             current,
             total
-          })
+          }))
         })
         .catch((e) => {
           console.log(e, '翻页失败')
         })
     },
-    [doRequest, initPage, pagination]
+    [doRequest, initPage]
   )
 
-  return useMemo(
-    () => ({
-      pagination: {
-        ...pagination,
-        onChange: handleChange
-      },
-      handleChange,
-      resetPageAndTriggerRequest: () => handleChange(initPage.current, initPage.pageSize)
-    }),
-    [handleChange, initPage, pagination]
-  )
+  const resetPageAndTriggerRequest = useCallback(() => handleChange(initPage.current, initPage.pageSize), [handleChange, initPage])
+
+  return {
+    pagination: {
+      ...pagination,
+      onChange: handleChange
+    },
+    handleChange,
+    resetPageAndTriggerRequest
+  }
 }
 export type autoPageType = ReturnType<typeof usePageChange>
 export type paginationType = Pick<autoPageType, 'pagination'>
