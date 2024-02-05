@@ -15,6 +15,9 @@ export const usePageChange = (
 ) => {
   const tempPageSize = useRef(initPage.pageSize ?? 10)
   const [pagination, setPagination] = useState({ ...initPage, showSizeChanger: !!initPage.showSizeChanger, pageSize: initPage.pageSize ?? 10 })
+
+  const [loading, setLoading] = useState(false)
+
   useEffect(() => {
     tempPageSize.current = pagination.pageSize
   }, [pagination.pageSize])
@@ -26,6 +29,7 @@ export const usePageChange = (
       if (pageSize !== tempPageSize.current) {
         current = initPage.current
       }
+      setLoading(true)
       doRequest(current, pageSize)
         .then((total) => {
           setPagination((prevState) => ({
@@ -37,6 +41,9 @@ export const usePageChange = (
         })
         .catch((e) => {
           console.log(e, '翻页失败')
+        })
+        .finally(() => {
+          setLoading(false)
         })
     },
     [doRequest, initPage]
@@ -50,7 +57,8 @@ export const usePageChange = (
       onChange: handleChange
     },
     handleChange,
-    resetPageAndTriggerRequest
+    resetPageAndTriggerRequest,
+    loading
   }
 }
 export type autoPageType = ReturnType<typeof usePageChange>
