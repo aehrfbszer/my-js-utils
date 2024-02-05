@@ -14,6 +14,7 @@ export const usePage = (initPage = 1, initPageSize = 10, call: (page: number, pa
     const page = ref(initPage)
     const pageSize = ref(initPageSize)
     const itemCount = ref(0)
+    const loading = ref(false)
 
     const pagination = reactive({
         page,
@@ -39,6 +40,7 @@ export const usePage = (initPage = 1, initPageSize = 10, call: (page: number, pa
         if (latestPageSize !== pageSize.value) {
             latestPage = initPage
         }
+        loading.value = true
         call(latestPage, latestPageSize)
             .then((total) => {
                 page.value = latestPage
@@ -47,7 +49,11 @@ export const usePage = (initPage = 1, initPageSize = 10, call: (page: number, pa
             })
             .catch((e) => {
                 console.log(e, '翻页失败')
-            })
+            }).finally(
+                () => {
+                    loading.value = false
+                }
+            )
     }
 
     const resetPageAndTriggerRequest = () => {
@@ -57,6 +63,7 @@ export const usePage = (initPage = 1, initPageSize = 10, call: (page: number, pa
     return {
         resetPageAndTriggerRequest,
         pagination,
-        handleChange
+        handleChange,
+        loading
     }
 }
