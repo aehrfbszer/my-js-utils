@@ -12,7 +12,7 @@ export const useReactiveNaive = <T extends Record<string, unknown>>(obj: T) => {
 
   Object.keys(obj).forEach((key: keyof T) => {
     naiveObj[key] = computed({
-      get: () => innerValue.value[key] || null,
+      get: () => (typeof innerValue.value[key] === 'number' ? innerValue.value[key] : innerValue.value[key] || null),
       set: (val) => {
         innerValue.value[key] = val
       }
@@ -29,11 +29,13 @@ export const useReactiveNaive = <T extends Record<string, unknown>>(obj: T) => {
     getterValue[key] = computed(() => reactiveValue[key] ?? undefined)
   })
 
+  const jsonObj = reactive(getterValue)
+
   const resetValue = () => {
     Object.keys(obj).forEach((key: keyof T) => {
       reactiveValue[key] = rawObj[key]
     })
   }
 
-  return { reactiveValue, jsonObj: getterValue, resetValue }
+  return { reactiveValue, jsonObj, resetValue }
 }
