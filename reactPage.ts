@@ -1,4 +1,14 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { PaginationProps } from 'antd/es/pagination/Pagination'
+
+type MorePageOptionType = Omit<PaginationProps, 'current' | 'total' | 'pageSize' | 'onChange'>
+
+export type initPageType = {
+  current: number
+  total: number
+  pageSize?: number
+  morePageOptions?: true | MorePageOptionType
+}
 
 /**
  * 适配的是Ant Design。
@@ -9,12 +19,13 @@ import { useCallback, useMemo, useState } from 'react'
  * @param initPage
  * @param doRequest
  */
-export const usePageChange = (
-  initPage: { current: number; total: number; pageSize?: number; showSizeChanger?: boolean },
-  doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>
-) => {
+export const usePageChange = (initPage: initPageType, doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>) => {
   const tempPageSize = useRef(initPage.pageSize ?? 10)
-  const [pagination, setPagination] = useState({ ...initPage, showSizeChanger: !!initPage.showSizeChanger, pageSize: initPage.pageSize ?? 10 })
+  const [pagination, setPagination] = useState({
+    current: initPage.current,
+    total: initPage.total,
+    pageSize: initPage.pageSize ?? 10
+  })
 
   const [loading, setLoading] = useState(false)
 
@@ -51,9 +62,25 @@ export const usePageChange = (
 
   const resetPageAndTriggerRequest = useCallback(() => handleChange(initPage.current, initPage.pageSize), [handleChange, initPage])
 
+  let morePagination: MorePageOptionType = {}
+
+  if (initPage.morePageOptions) {
+    if (initPage.morePageOptions === true) {
+      morePagination = {
+        showSizeChanger: true,
+        showQuickJumper: true,
+        showTotal: (total: number) => `共 ${total} 条数据`,
+        pageSizeOptions: [10, 20, 30, 40]
+      }
+    } else {
+      morePagination = initPage.morePageOptions
+    }
+  }
+
   return {
     pagination: {
       ...pagination,
+      ...morePagination,
       onChange: handleChange
     },
     handleChange,
