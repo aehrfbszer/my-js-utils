@@ -1,6 +1,6 @@
 const removeAllItem = () => {
-    localStorage.clear()
-    sessionStorage.clear()
+    // localStorage.clear()
+    // sessionStorage.clear()
 }
 
 export interface EachRequestCustomOptions {
@@ -256,7 +256,14 @@ export const newFetchRequest = ({
                 }
 
                 if (myOptions.responseIsJson) {
-                    return await response.json()
+                    try {
+                        return await response.json()
+                    } catch (e) {
+                        const text = '返回的不是json格式，考虑设置responseIsJson为false'
+                        console.error(e, text);
+                        handleMessage?.error?.(text)
+                        return Promise.reject(text)
+                    }
                 } else {
                     return response
                 }
@@ -273,12 +280,19 @@ export const newFetchRequest = ({
 
                 // 尝试刷新token失败了，返回错误让上一层处理(其实这里处理也行)
                 if (url.includes(refreshTokenUrl.fetchConfig.url)) {
-                    const errInfo = await response.json()
-                    console.log('登录失效', errInfo)
-                    handleMessage?.error?.('登录失效')
-                    return Promise.reject(new Error('刷新token失败', {
-                        cause: errInfo
-                    }))
+                    try {
+                        const errInfo = await response.json()
+                        console.log('登录失效', errInfo)
+                        handleMessage?.error?.('登录失效')
+                        return Promise.reject(new Error('刷新token失败', {
+                            cause: errInfo
+                        }))
+                    } catch (e) {
+                        // 错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取
+                        console.log(e, '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取');
+                        return Promise.reject(new Error('刷新token失败'))
+                    }
+
                 }
                 // 接口返回401，说明信息过期，尝试去刷新token
                 else if (response.status === 401) {
@@ -332,9 +346,11 @@ export const newFetchRequest = ({
                                     console.log(e);
                                     handleMessage?.error?.('登录失效')
                                     removeAllItem()
-                                    window.location.href = `${window.location.origin}/login`
-                                    // 刷新，内存释放
-                                    location.reload()
+                                    console.log('返回登录页');
+
+                                    // window.location.href = `${window.location.origin}/login`
+                                    // // 刷新，内存释放
+                                    // location.reload()
                                 })
                         }
                     }
@@ -343,9 +359,11 @@ export const newFetchRequest = ({
                         console.error('多次刷新token成功，但接口仍是401');
                         handleMessage?.error?.('登录失效')
                         removeAllItem()
-                        window.location.href = `${window.location.origin}/login`
-                        // 刷新，内存释放
-                        location.reload()
+                        // window.location.href = `${window.location.origin}/login`
+                        // // 刷新，内存释放
+                        // location.reload()
+                        console.log('返回登录页');
+
                     }
                 }
                 // 下面的else里面是接口返回的普通错误，直接外抛给外部代码
@@ -364,13 +382,13 @@ export const newFetchRequest = ({
                     try {
                         return Promise.reject(await response.json())
                     } catch {
-                        return Promise.reject(response)
+                        return Promise.reject([response, '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取'])
                     }
                 }
             }
         } catch (error: unknown) {
 
-            console.log(error, '请求失败了，超时错误与网络错误是正常的，无法处理', '其他情况不是预期的错误，需要开发者注意');
+            console.error(error, '请求失败了，超时错误与网络错误是正常的，无法处理', '其他情况不是预期的错误，需要开发者注意');
 
             const msg = controller.signal.reason
 
@@ -455,7 +473,7 @@ export async function httpErrorStatusHandle(response: Response, useApiError?: bo
                 msg = error.detail
             }
         } catch (e) {
-            console.log(e)
+            console.log(e, '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取')
         }
     }
     return msg

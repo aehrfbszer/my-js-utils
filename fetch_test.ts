@@ -16,7 +16,7 @@ const myFetch = newFetchRequest({
     },
     getToken: () => 'ttt',
     handleMessage: {
-        error: (msg) => console.log(msg)
+        error: (msg) => console.warn(msg)
     }
 })
 const { mainFetch } = myFetch
@@ -27,7 +27,6 @@ mainFetch({
 }).then(
     res => {
         console.log(res);
-
     }
 ).catch(e => {
     console.log(e, '///');
