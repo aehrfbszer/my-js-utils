@@ -4,29 +4,32 @@ const removeAllItem = () => {
 }
 
 export interface EachRequestCustomOptions {
-    /*【默认：false】 是否开启取消进行中的重复请求(舍弃旧的,舍弃时报error), 默认为 false，默认判断依据为url，method, params，data相同为重复*/
+    /**【默认：false】 是否开启取消进行中的重复请求(舍弃旧的,舍弃时报error), 默认为 false，默认判断依据为url，method, params，data相同为重复*/
     repeat_request_cancel: boolean
 
-    /*【默认：true】是否开启loading层效果,首先需要传loading实例进来*/
+    /**【默认：true】是否开启loading层效果,首先需要传loading实例进来*/
     loading: boolean
 
-    /* 【默认：true】是否展示接口错误信息，首先需要传message实例进来*/
+    /** 【默认：true】是否展示接口错误信息，首先需要传message实例进来*/
     error_message_show: boolean
 
-    /* 【默认：true】直接使用接口的报错信息，尝试获取接口错误信息失败则根据err code尝试使用通用错误处理，先要开启error_message_show*/
+    /** 【默认：true】直接使用接口的报错信息，尝试获取接口错误信息失败则根据err code尝试使用通用错误处理，先要开启error_message_show*/
     use_api_error_info: boolean
 
-    //【默认：false】针对repeat_request_cancel为true时，忽略判断逻辑中的params和data
+    /**【默认：false】针对repeat_request_cancel为true时，忽略判断逻辑中的params和data */
     repeat_ignore_params: boolean
 
-    //【默认：false】针对repeat_request_cancel为true时，直接忽略默认判断逻辑，使用该参数作为key区分是否重复
-    repeat_danger_key: string
+    /**【默认：undefined】针对repeat_request_cancel为true时，直接忽略默认判断逻辑，使用该参数作为key区分是否重复*/
+    repeat_danger_key?: string
 
-    //【默认：false】当error_message_show为true，但又不想展示repeat_request_cancel的错误提示时
+    /**【默认：false】当error_message_show为true，但又不想展示repeat_request_cancel的错误提示时*/
     repeat_error_ignore: boolean
 
-    //【默认：false】不需要token
+    /**【默认：false】不需要token*/
     withoutToken: boolean
+
+    /** 【默认：true】认为返回数据是json，解析json数据后返回，否则不处理直接返回原始response */
+    responseIsJson: boolean
 }
 
 type Method =
@@ -58,11 +61,11 @@ export type keyConfig = {
     data?: string
 }
 
-/**
+/***
  * @description: 生成唯一的每个请求的唯一key
  */
 function getPendingKey(config: keyConfig, noParams = false, dangerCancelKey?: string) {
-    const {url, method, params, data} = config
+    const { url, method, params, data } = config
     if (dangerCancelKey) {
         return dangerCancelKey
     }
@@ -73,32 +76,38 @@ function getPendingKey(config: keyConfig, noParams = false, dangerCancelKey?: st
 export interface FetchConfig {
     url: string
     method: Method
-    data?: Record<string, any>
-    params?: Record<string, string | number | undefined>
+    /** URLSearchParams=> "application/x-www-form-urlencoded"；
+     * data为object=>"application/json"；
+     * FormData=>"multipart/form-data" */
+    data?: Record<string, unknown> | FormData | URLSearchParams
+    /** 由于参数是在params中，所以键值对中的值没有必要允许number，请提前转成数字字符 */
+    params?: {
+        [key: string]: string | undefined
+    }
 
-    [key: string]: any
+    [key: string]: unknown
 }
 
 export const newFetchRequest = ({
-                                    baseUrl,
-                                    timeout = 60 * 1000,
-                                    loginUrl,
-                                    refreshTokenUrl,
-                                    withoutTokenUrls = [],
-                                    getToken,
-                                    handleMessage = null,
-                                    loadingFunction = null,
-                                    extraConfig = {
-                                        loginNeedToken: false,
-                                        refreshTokenNeedToken: true
-                                    }
-                                }: {
+    baseUrl,
+    timeout = 60 * 1000,
+    loginUrl,
+    refreshTokenUrl,
+    withoutTokenUrls = [],
+    getToken,
+    handleMessage = null,
+    loadingFunction = null,
+    extraConfig = {
+        loginNeedToken: false,
+        refreshTokenNeedToken: true
+    }
+}: {
     baseUrl: string
     timeout?: number
     loginUrl: string
     refreshTokenUrl: {
         fetchConfig: FetchConfig
-        setToken: (res: any) => void
+        setToken: (res: unknown) => void
     }
     withoutTokenUrls?: Array<string>
     getToken: () => string
@@ -135,10 +144,10 @@ export const newFetchRequest = ({
         noTokenUrls.push(loginUrl)
     }
     if (!extraConfig.refreshTokenNeedToken) {
-        noTokenUrls.push(refreshTokenUrl.fetchConfig.url as string)
+        noTokenUrls.push(refreshTokenUrl.fetchConfig.url)
     }
 
-    async function mainFetch(fetchConfig: FetchConfig, customOptions?: Partial<EachRequestCustomOptions>, isJson = true, count = 0): Promise<any> {
+    async function mainFetch(fetchConfig: FetchConfig, customOptions?: Partial<EachRequestCustomOptions>, count = 0): Promise<unknown> {
         const controller = new AbortController()
 
         const myOptions: EachRequestCustomOptions = Object.assign(
@@ -148,9 +157,10 @@ export const newFetchRequest = ({
                 error_message_show: true,
                 use_api_error_info: true,
                 repeat_ignore_params: false,
-                repeat_danger_key: false,
+                // repeat_danger_key: undefined,
                 repeat_error_ignore: false,
-                withoutToken: false
+                withoutToken: false,
+                responseIsJson: true
             },
             customOptions
         )
@@ -166,7 +176,7 @@ export const newFetchRequest = ({
                     Authorization?: string
                     'Content-Type'?: string
                 }
-                body?: string
+                body?: string | URLSearchParams | FormData
             } = {
                 signal: controller.signal,
                 method: fetchConfig.method, // *GET, POST, PUT, DELETE, etc.
@@ -176,17 +186,24 @@ export const newFetchRequest = ({
             if (token && !noTokenUrls.some((noUrl) => url.includes(noUrl)) && !myOptions.withoutToken) {
                 config.headers['Authorization'] = `Bearer ${token}`
             }
-            if (isJson && fetchConfig.data) {
-                config.headers['Content-Type'] = 'application/json'
-                config.body = JSON.stringify(fetchConfig.data)
+            if (fetchConfig.data) {
+                if (fetchConfig.data instanceof FormData || fetchConfig.data instanceof URLSearchParams) {
+                    //  Fetch 标准规定如果 body 是一个 URLSearchParams 对象，那么它应该序列化为 application/x-www-form-urlencoded
+                    // FormData同理multipart/form-data，所以不需要设置Content-Type
+                    config.body = fetchConfig.data
+                } else {
+                    config.headers['Content-Type'] = 'application/json'
+                    config.body = JSON.stringify(fetchConfig.data)
+                }
             }
 
             let urlParams = ''
             let finalUrl = url
 
             if (fetchConfig.params) {
-                const filterParams = JSON.parse(JSON.stringify(fetchConfig.params))
-                urlParams = new URLSearchParams(Object.entries(filterParams)).toString()
+                // json来回一遍是为了过滤undefined字段
+                const filterParams: Record<string, string> = JSON.parse(JSON.stringify(fetchConfig.params))
+                urlParams = new URLSearchParams(filterParams).toString()
                 finalUrl = `${url}?${urlParams}`
             }
 
@@ -195,7 +212,8 @@ export const newFetchRequest = ({
                     url: url,
                     method: fetchConfig.method,
                     params: urlParams,
-                    data: config.body
+                    // 警告：FormData没什么好方法tostring，直接toString是'[object FormData]'，所以会比不出来区别
+                    data: config.body?.toString()
                 },
                 myOptions.repeat_ignore_params,
                 myOptions.repeat_danger_key
@@ -216,8 +234,8 @@ export const newFetchRequest = ({
             // 创建loading实例
             if (myOptions.loading) {
                 LoadingInstance._count++
-                if (LoadingInstance._count === 1 && loadingFunction) {
-                    loadingFunction.start && loadingFunction.start()
+                if (LoadingInstance._count === 1) {
+                    loadingFunction?.start?.()
                 }
             }
 
@@ -232,76 +250,132 @@ export const newFetchRequest = ({
             if (response.ok) {
                 if (myOptions.loading) {
                     if (LoadingInstance._count > 0) LoadingInstance._count--
-                    if (loadingFunction && LoadingInstance._count === 0) {
-                        loadingFunction.finish && loadingFunction.finish()
+                    if (LoadingInstance._count === 0) {
+                        loadingFunction?.finish?.()
                     }
                 }
 
-                try {
+                if (myOptions.responseIsJson) {
                     return await response.json()
-                } catch {
-                    return
+                } else {
+                    return response
                 }
             } else {
+                /**
+                 * 进到这个else里，说明response的status code不是200-299，需要进行错误处理
+                 * 错误其实只分两种一种token过期，一种其他错误。
+                 * 
+                 * 其中token过期分两种，一种是已经尝试了刷新token，但刷新token的接口都失败了，那就清缓存，返回登录页
+                 * 另一种在刷新中，保存其他请求，等待新token进行重试。
+                 * 
+                 * 其他错误那就直接正常抛出给外部代码
+                */
+
+                // 尝试刷新token失败了，返回错误让上一层处理(其实这里处理也行)
                 if (url.includes(refreshTokenUrl.fetchConfig.url)) {
-                    console.log('登录失效')
-                    removeAllItem()
-                    window.location.href = `${window.location.origin}/login?time=${new Date().getTime()}`
-                    if (handleMessage) handleMessage.error && handleMessage.error('登录失效')
-                    return
-                } else if (response.status === 401 && count < 3) {
-                    const onceAgainRequest = () => mainFetch(fetchConfig, customOptions, isJson, count + 1)
-                    const nowToken = getToken()
-                    if (nowToken && nowToken !== token) {
-                        return onceAgainRequest()
-                    }
-                    const arr = pendingArrMap.get(token)
-                    if (arr) {
-                        return new Promise((resolve) => {
-                            arr.push(() => {
-                                resolve(onceAgainRequest())
-                            })
-                        })
-                    } else {
-                        pendingArrMap.set(token, [])
-                        return mainFetch(refreshTokenUrl.fetchConfig)
-                            .then((res) => {
-                                refreshTokenUrl.setToken(res)
-                                const oldArr = pendingArrMap.get(token)
-                                oldArr?.forEach((cb) => {
-                                    cb()
+                    const errInfo = await response.json()
+                    console.log('登录失效', errInfo)
+                    handleMessage?.error?.('登录失效')
+                    return Promise.reject(new Error('刷新token失败', {
+                        cause: errInfo
+                    }))
+                }
+                // 接口返回401，说明信息过期，尝试去刷新token
+                else if (response.status === 401) {
+                    // 这里的情况count一般都是0，如果count大于0，那就是刷新token成功了，但请求接口还是401，说明count大于0是后端逻辑错误
+                    if (count < 3) {
+                        // 把请求保存下来，但还不执行
+                        const onceAgainRequest = () => mainFetch(fetchConfig, customOptions, count + 1)
+                        // 看一下有没有新token
+                        const nowToken = getToken()
+                        if (nowToken && nowToken !== token) {
+                            // 新token有了，直接重试请求
+                            return onceAgainRequest()
+                        }
+                        /** 
+                         * 到了这里，说明没有新token，那么将请求保存下来。
+                         * 本代码逻辑是一段时间内只会有一个请求去尝试刷新token，其他同样过期的其他请求，暂时保存在数组里，等待token刷新成功
+                         */
+                        // 这里看看是否已经针对旧的token在请求刷新token了
+                        const arr = pendingArrMap.get(token)
+                        // 进到if里，说明已经在尝试刷新了
+                        if (arr) {
+                            // 返回一个Promise，让外部代码保持pending状态，让外部代码无感知，认为只是一次请求等久一点而已，并没有重试
+                            return new Promise((resolve) => {
+                                // arr中存待执行的请求（在arr中请求执行后，返回的请求结果会被resolve出来，外部代码无感知）
+                                arr.push(() => {
+                                    resolve(onceAgainRequest())
                                 })
-                                pendingArrMap.delete(token)
-                                return onceAgainRequest()
                             })
-                            .catch(() => {
-                                if (handleMessage) {
-                                    handleMessage.error && handleMessage.error('登录失效')
-                                }
-                                removeAllItem()
-                                window.location.href = `${window.location.origin}/login`
-                            })
+                        }
+                        // 进到else里，说明这个请求是第一个401请求，此处来刷新token
+                        else {
+                            const pendingArr: Array<() => void> = []
+                            pendingArrMap.set(token, pendingArr)
+                            return mainFetch(refreshTokenUrl.fetchConfig)
+                                .then((res) => {
+                                    refreshTokenUrl.setToken(res)
+                                    // const oldArr = pendingArrMap.get(token)
+                                    // oldArr?.forEach((cb) => {
+                                    //     cb()
+                                    // })
+                                    pendingArr.forEach(
+                                        cb => {
+                                            cb()
+                                        }
+                                    )
+                                    pendingArrMap.delete(token)
+                                    // 把这个第一个401请求返回
+                                    return onceAgainRequest()
+                                })
+                                .catch((e) => {
+                                    console.log(e);
+                                    handleMessage?.error?.('登录失效')
+                                    removeAllItem()
+                                    window.location.href = `${window.location.origin}/login`
+                                    // 刷新，内存释放
+                                    location.reload()
+                                })
+                        }
                     }
-                } else {
+                    // 超过3次，需要前端兜底，防止无限重试，直接退出登录
+                    else {
+                        console.error('多次刷新token成功，但接口仍是401');
+                        handleMessage?.error?.('登录失效')
+                        removeAllItem()
+                        window.location.href = `${window.location.origin}/login`
+                        // 刷新，内存释放
+                        location.reload()
+                    }
+                }
+                // 下面的else里面是接口返回的普通错误，直接外抛给外部代码
+                else {
                     if (myOptions.loading) {
                         if (LoadingInstance._count > 0) LoadingInstance._count--
-                        if (loadingFunction && LoadingInstance._count === 0) {
-                            loadingFunction.error && loadingFunction.error()
+                        if (LoadingInstance._count === 0) {
+                            loadingFunction?.error?.()
                         }
                     }
 
                     const msg = myOptions.error_message_show && (await httpErrorStatusHandle(response, myOptions.use_api_error_info)) // 处理错误状态码
-                    if (msg && handleMessage && handleMessage.error) {
-                        handleMessage.error(msg)
+                    if (msg) {
+                        handleMessage?.error?.(msg)
                     }
-                    return Promise.reject(response) // 错误继续返回给到具体页面
+                    try {
+                        return Promise.reject(await response.json())
+                    } catch {
+                        return Promise.reject(response)
+                    }
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
+
+            console.log(error, '请求失败了，超时错误与网络错误是正常的，无法处理', '其他情况不是预期的错误，需要开发者注意');
+
             const msg = controller.signal.reason
 
             const finalMsg = msg || '请求失败，请检查网络'
-            if (handleMessage) handleMessage.error && handleMessage.error(finalMsg)
+            handleMessage?.error?.(finalMsg)
 
             return Promise.reject('请求失败')
         }
@@ -314,7 +388,7 @@ export const newFetchRequest = ({
     }
 }
 
-/**
+/***
  * @description: 处理异常
  * @param response
  * @param useApiError
@@ -331,6 +405,7 @@ export async function httpErrorStatusHandle(response: Response, useApiError?: bo
                 msg = '参数不正确！'
                 break
             case 401:
+                // 已经在上面的代码处理了，进不到这里
                 msg = '您未登录，或者登录已经超时，请先登录！'
                 removeAllItem()
                 window.location.href = `${window.location.origin}/login?time=${new Date().getTime()}`
