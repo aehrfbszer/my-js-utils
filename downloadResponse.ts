@@ -14,12 +14,16 @@ export default (data: Record<string, any>, apiName = '接口') => {
     link.style.top = '50%'
     link.style.zIndex = '99999'
 
+    let done = false
+
     document.body.appendChild(link)
     link.addEventListener('click',
         () => {
             setTimeout(
                 () => {
+                    link.remove()
                     URL.revokeObjectURL(link.href);
+                    done = true
                 }, 800
             )
         }
@@ -27,8 +31,9 @@ export default (data: Record<string, any>, apiName = '接口') => {
 
     setTimeout(
         () => {
+            if (done) return
+            link.remove()
             URL.revokeObjectURL(link.href);
-            document.removeChild(link)
         }, 60 * 1000
     )
 
