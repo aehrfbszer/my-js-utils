@@ -3,7 +3,7 @@ import { ComputedRef, Ref, ref, computed, reactive } from 'vue'
 // make naive ui great again(但是说实话，没啥用)
 export const useReactiveNaive = <T extends Record<string, unknown>>(obj: T) => {
   const rawObj = {
-    ...obj
+    ...obj,
   }
   const innerValue = ref(obj)
 
@@ -11,16 +11,18 @@ export const useReactiveNaive = <T extends Record<string, unknown>>(obj: T) => {
     [key in keyof T]: Ref<T[key] | null>
   }
 
-
   // naive ui不识别空字符，只识别null，赋值为null才会更新页面，置空，所以写naiveObj
   const naiveObj: ObjForNaive = {} as ObjForNaive
 
-  (Object.keys(obj) as (keyof T)[]).forEach((key) => {
+  ;(Object.keys(obj) as (keyof T)[]).forEach((key) => {
     naiveObj[key] = computed({
-      get: () => (typeof innerValue.value[key] === 'number' ? innerValue.value[key] : innerValue.value[key] || null),
+      get: () =>
+        typeof innerValue.value[key] === 'number'
+          ? innerValue.value[key]
+          : innerValue.value[key] || null,
       set: (val) => {
         innerValue.value[key] = val
-      }
+      },
     })
   })
 
@@ -30,9 +32,9 @@ export const useReactiveNaive = <T extends Record<string, unknown>>(obj: T) => {
 
   const getterValue: GetterValueType = {} as GetterValueType
 
-  const reactiveValue = reactive(naiveObj);
+  const reactiveValue = reactive(naiveObj)
 
-  (Object.keys(obj) as (keyof T)[]).forEach((key) => {
+  ;(Object.keys(obj) as (keyof T)[]).forEach((key) => {
     getterValue[key] = computed(() => naiveObj[key].value ?? undefined)
   })
 

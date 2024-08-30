@@ -15,16 +15,19 @@ export type initPageType = {
  * 传参建议：
  * initPage建议定义在react的 function component之外，
  * doRequest建议使用useCallback包裹。
- * 
+ *
  * @param initPage
  * @param doRequest
  */
-export const usePageChange = (initPage: initPageType, doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>) => {
+export const usePageChange = (
+  initPage: initPageType,
+  doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>
+) => {
   const tempPageSize = useRef(initPage.pageSize ?? 10)
   const [pagination, setPagination] = useState({
     current: initPage.current,
     total: initPage.total,
-    pageSize: initPage.pageSize ?? 10
+    pageSize: initPage.pageSize ?? 10,
   })
 
   const [loading, setLoading] = useState(false)
@@ -47,7 +50,7 @@ export const usePageChange = (initPage: initPageType, doRequest: (page: number, 
             ...prevState,
             pageSize,
             current,
-            total
+            total,
           }))
         })
         .catch((e) => {
@@ -60,7 +63,10 @@ export const usePageChange = (initPage: initPageType, doRequest: (page: number, 
     [doRequest, initPage]
   )
 
-  const resetPageAndTriggerRequest = useCallback(() => handleChange(initPage.current, initPage.pageSize), [handleChange, initPage])
+  const resetPageAndTriggerRequest = useCallback(
+    () => handleChange(initPage.current, initPage.pageSize),
+    [handleChange, initPage]
+  )
 
   let morePagination: MorePageOptionType = {}
 
@@ -70,7 +76,7 @@ export const usePageChange = (initPage: initPageType, doRequest: (page: number, 
         showSizeChanger: true,
         showQuickJumper: true,
         showTotal: (total: number) => `共 ${total} 条数据`,
-        pageSizeOptions: [10, 20, 30, 40]
+        pageSizeOptions: [10, 20, 30, 40],
       }
     } else {
       morePagination = initPage.morePageOptions
@@ -81,11 +87,11 @@ export const usePageChange = (initPage: initPageType, doRequest: (page: number, 
     pagination: {
       ...pagination,
       ...morePagination,
-      onChange: handleChange
+      onChange: handleChange,
     },
     handleChange,
     resetPageAndTriggerRequest,
-    loading
+    loading,
   }
 }
 export type autoPageType = ReturnType<typeof usePageChange>

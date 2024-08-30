@@ -1,6 +1,5 @@
 export const TOKEN = 'token'
 
-
 /**
  * @description: 存储数据
  * @param {string} key
@@ -42,4 +41,3 @@ export const removeItem = (key: string) => {
 export const removeAllItem = () => {
   localStorage.clear()
 }
-
