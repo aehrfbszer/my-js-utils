@@ -224,14 +224,14 @@ export const newFetchRequest = ({
                 }
             }
 
+            // 这里是同步代码，发出了请求
+            const doRequest = fetch(finalUrl, config)
+
             const cancelTimer = setTimeout(() => {
                 cancelRequest('请求超时！')
             }, timeout)
 
             let countThing: () => void | undefined
-
-            // 这里是同步代码，发出了请求
-            const doRequest = fetch(finalUrl, config)
 
 
             // 这里算是性能优化
@@ -251,7 +251,7 @@ export const newFetchRequest = ({
                 pendingCountObj[pendingKey] ??= 0
                 pendingCountObj[pendingKey] += 1
                 if (pendingCountObj[pendingKey] > 1) {
-                    // 只有请求发出了，取消请求才有意义
+                    // 只有请求发出了，取消请求才有意义，就是上面要写const doRequest = fetch(finalUrl, config)的意义
                     cancelRequest('重复的请求')
                 }
                 countThing = () => {
