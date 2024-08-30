@@ -19,13 +19,26 @@ const myFetch = newFetchRequest({
         error: (msg) => console.warn(msg)
     }
 })
-const { mainFetch } = myFetch
+const { mainFetch, resetLoadingTool } = myFetch
 
-mainFetch({
+resetLoadingTool({
+    start: () => {
+        console.log('start-----------------------');
+    },
+    finish: () => {
+        console.log('finish-----------------------');
+    },
+    error: () => {
+        console.log('error-----------------------');
+    }
+})
+
+const query = () => mainFetch({
     url: '/',
     method: 'GET',
 }, {
-    responseIsJson: false
+    responseIsJson: false,
+    repeat_request_cancel: true
 }).then(
     res => {
         console.log(res);
@@ -33,6 +46,14 @@ mainFetch({
 ).catch(e => {
     console.log(e, '///');
 })
+query()
+query()
+query()
+query()
+query()
+query()
+query()
+query()
 
 mainFetch({
     url: '/test',

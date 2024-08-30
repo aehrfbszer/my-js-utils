@@ -133,7 +133,11 @@ export const newFetchRequest = ({
         handleMessage = instance
     }
 
-    const pendingMap: Map<string, (reason: string) => void> = new Map()
+
+    const pendingCountObj: {
+        [key: string]: number
+    } = {}
+
     const LoadingInstance = {
         _count: 0
     }
@@ -149,6 +153,7 @@ export const newFetchRequest = ({
 
     async function mainFetch(fetchConfig: FetchConfig, customOptions?: Partial<EachRequestCustomOptions>, count = 0): Promise<unknown> {
         const controller = new AbortController()
+        const signal = controller.signal
 
         const myOptions: EachRequestCustomOptions = Object.assign(
             {
@@ -178,7 +183,7 @@ export const newFetchRequest = ({
                 }
                 body?: string | URLSearchParams | FormData
             } = {
-                signal: controller.signal,
+                signal: signal,
                 method: fetchConfig.method, // *GET, POST, PUT, DELETE, etc.
                 headers: {}
             }
@@ -207,29 +212,9 @@ export const newFetchRequest = ({
                 finalUrl = `${url}?${urlParams}`
             }
 
-            const pendingKey = getPendingKey(
-                {
-                    url: url,
-                    method: fetchConfig.method,
-                    params: urlParams,
-                    // 警告：FormData没什么好方法tostring，直接toString是'[object FormData]'，所以会比不出来区别
-                    data: config.body?.toString()
-                },
-                myOptions.repeat_ignore_params,
-                myOptions.repeat_danger_key
-            )
+
             const cancelRequest = (reason: string) => controller.abort(reason)
-            if (!pendingMap.has(pendingKey)) {
-                pendingMap.set(pendingKey, cancelRequest)
-            } else {
-                if (myOptions.repeat_request_cancel) {
-                    const doCancel = pendingMap.get(pendingKey)
-                    if (doCancel) {
-                        doCancel('重复的请求')
-                        pendingMap.delete(pendingKey)
-                    }
-                }
-            }
+
 
             // 创建loading实例
             if (myOptions.loading) {
@@ -241,15 +226,60 @@ export const newFetchRequest = ({
 
             const cancelTimer = setTimeout(() => {
                 cancelRequest('请求超时！')
-                pendingMap.delete(pendingKey)
             }, timeout)
-            const response = await fetch(finalUrl, config)
-            clearTimeout(cancelTimer)
-            pendingMap.delete(pendingKey)
+
+            let countThing: () => void | undefined
+
+            // 这里是同步代码，发出了请求
+            const doRequest = fetch(finalUrl, config)
+
+
+            // 这里算是性能优化
+            if (myOptions.repeat_request_cancel) {
+                const pendingKey = getPendingKey(
+                    {
+                        url: url,
+                        method: fetchConfig.method,
+                        params: urlParams,
+                        // 警告：FormData没什么好方法tostring，直接toString是'[object FormData]'，所以会比不出来区别
+                        data: config.body?.toString()
+                    },
+                    myOptions.repeat_ignore_params,
+                    myOptions.repeat_danger_key
+                )
+
+                pendingCountObj[pendingKey] ??= 0
+                pendingCountObj[pendingKey] += 1
+                if (pendingCountObj[pendingKey] > 1) {
+                    // 只有请求发出了，取消请求才有意义
+                    cancelRequest('重复的请求')
+                }
+                countThing = () => {
+                    pendingCountObj[pendingKey] -= 1
+                    if (pendingCountObj[pendingKey] === 0) {
+                        delete pendingCountObj[pendingKey]
+                    }
+                }
+            }
+
+
+            // finally为这个请求做一些原子化操作
+            const response = await doRequest.finally(
+                () => {
+                    countThing?.()
+                    if (myOptions.loading) {
+                        if (LoadingInstance._count > 0) LoadingInstance._count--
+                    }
+                    // 一、断网了、重复请求导致取消了，但定时器没关，所以在这里关一下
+                    // 二、如果是超时导致取消，那定时器已经执行完了，clear也没什么必要，但clear也不会报错
+                    // 三、正常响应(包括200、403等状态对fetch都是正常响应)，说明响应已经结束了，cancel请求不可能生效了，但clear清一下内存也行
+                    clearTimeout(cancelTimer)
+                }
+            )
+
 
             if (response.ok) {
                 if (myOptions.loading) {
-                    if (LoadingInstance._count > 0) LoadingInstance._count--
                     if (LoadingInstance._count === 0) {
                         loadingFunction?.finish?.()
                     }
@@ -275,8 +305,8 @@ export const newFetchRequest = ({
                  * 进到这个else里，说明response的status code不是200-299，需要进行错误处理
                  * 错误其实只分两种一种token过期，一种其他错误。
                  * 
-                 * 其中token过期分两种，一种是已经尝试了刷新token，但刷新token的接口都失败了，那就清缓存，返回登录页
-                 * 另一种在刷新中，保存其他请求，等待新token进行重试。
+                 * 其中token过期分两种，一种是已经尝试了刷新token，但刷新token的接口结果失败了，那就清缓存，返回登录页
+                 * 另一种在刷新过程中，保存其他请求，等待新token进行重试。
                  * 
                  * 其他错误那就直接正常抛出给外部代码
                 */
@@ -372,7 +402,6 @@ export const newFetchRequest = ({
                 // 下面的else里面是接口返回的普通错误，直接外抛给外部代码
                 else {
                     if (myOptions.loading) {
-                        if (LoadingInstance._count > 0) LoadingInstance._count--
                         if (LoadingInstance._count === 0) {
                             loadingFunction?.error?.()
                         }
@@ -404,12 +433,18 @@ export const newFetchRequest = ({
             }
         } catch (error: unknown) {
             console.group();
-            console.error('请求失败了，超时错误与网络错误是正常的，无法处理')
+            console.error('请求失败了，取消请求(超时、重复)与网络错误是正常的，无法处理')
             console.error(error);
             console.error('其他情况不是预期的错误，需要开发者注意');
             console.groupEnd()
 
-            const msg = controller.signal.reason
+            if (myOptions.loading) {
+                if (LoadingInstance._count === 0) {
+                    loadingFunction?.error?.()
+                }
+            }
+
+            const msg = signal.reason
 
             const finalMsg = msg || '请求失败，请检查网络'
             handleMessage?.error?.(finalMsg)
