@@ -517,16 +517,12 @@ export function httpErrorStatusHandle(response: Response, errObj?: unknown) {
         }
     }
     if (errObj) {
-        try {
-            if (errObj.message) {
-                msg = errObj.message
-            } else if (errObj.error) {
-                msg = errObj.error
-            } else if (errObj.detail) {
-                msg = errObj.detail
-            }
-        } catch (e) {
-            console.log(e)
+        if (errObj.message) {
+            msg = errObj.message
+        } else if (errObj.error) {
+            msg = errObj.error
+        } else if (errObj.detail) {
+            msg = errObj.detail
         }
     }
     return msg
