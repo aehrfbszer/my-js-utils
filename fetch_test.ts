@@ -24,6 +24,8 @@ const { mainFetch } = myFetch
 mainFetch({
     url: '/',
     method: 'GET',
+}, {
+    responseIsJson: false
 }).then(
     res => {
         console.log(res);
@@ -42,3 +44,19 @@ mainFetch({
 ).catch(e => {
     console.log(e, 'test');
 })
+
+mainFetch({
+    url: '/fail',
+    method: 'get'
+}, {
+    responseIsJson: false
+}).then(r => {
+    console.log(r);
+
+}).catch((e) => {
+    console.log(e, 'fff');
+
+})
+
+
+

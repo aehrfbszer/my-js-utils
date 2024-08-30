@@ -260,7 +260,10 @@ export const newFetchRequest = ({
                         return await response.json()
                     } catch (e) {
                         const text = '返回的不是json格式，考虑设置responseIsJson为false'
-                        console.error(e, text);
+                        console.error(text);
+                        console.group()
+                        console.log(e)
+                        console.groupEnd()
                         handleMessage?.error?.(text)
                         return Promise.reject(text)
                     }
@@ -289,7 +292,10 @@ export const newFetchRequest = ({
                         }))
                     } catch (e) {
                         // 错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取
-                        console.log(e, '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取');
+                        console.error('错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取')
+                        console.group()
+                        console.log(e);
+                        console.groupEnd()
                         return Promise.reject(new Error('刷新token失败'))
                     }
 
@@ -397,8 +403,11 @@ export const newFetchRequest = ({
                 }
             }
         } catch (error: unknown) {
-
-            console.error(error, '请求失败了，超时错误与网络错误是正常的，无法处理', '其他情况不是预期的错误，需要开发者注意');
+            console.group();
+            console.error('请求失败了，超时错误与网络错误是正常的，无法处理')
+            console.error(error);
+            console.error('其他情况不是预期的错误，需要开发者注意');
+            console.groupEnd()
 
             const msg = controller.signal.reason
 
