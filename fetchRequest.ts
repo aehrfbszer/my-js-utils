@@ -1,6 +1,6 @@
 const removeAllItem = () => {
-    // localStorage.clear()
-    // sessionStorage.clear()
+    localStorage.clear()
+    sessionStorage.clear()
 }
 
 export interface EachRequestCustomOptions {
@@ -346,11 +346,9 @@ export const newFetchRequest = ({
                                     console.log(e);
                                     handleMessage?.error?.('登录失效')
                                     removeAllItem()
-                                    console.log('返回登录页');
-
-                                    // window.location.href = `${window.location.origin}/login`
-                                    // // 刷新，内存释放
-                                    // location.reload()
+                                    window.location.href = `${window.location.origin}/login`
+                                    // 刷新，内存释放
+                                    location.reload()
                                 })
                         }
                     }
@@ -359,10 +357,9 @@ export const newFetchRequest = ({
                         console.error('多次刷新token成功，但接口仍是401');
                         handleMessage?.error?.('登录失效')
                         removeAllItem()
-                        // window.location.href = `${window.location.origin}/login`
-                        // // 刷新，内存释放
-                        // location.reload()
-                        console.log('返回登录页');
+                        window.location.href = `${window.location.origin}/login`
+                        // 刷新，内存释放
+                        location.reload()
 
                     }
                 }
@@ -375,12 +372,25 @@ export const newFetchRequest = ({
                         }
                     }
 
-                    const msg = myOptions.error_message_show && (await httpErrorStatusHandle(response, myOptions.use_api_error_info)) // 处理错误状态码
-                    if (msg) {
-                        handleMessage?.error?.(msg)
-                    }
                     try {
-                        return Promise.reject(await response.json())
+
+
+                        // 不一定是object，也可能是number，string等，这些都是符合json标准
+                        const errJson = await response.json()
+
+
+
+                        if (myOptions.error_message_show) {
+                            // 当成obj，具体逻辑让后面处理
+                            const errObj = myOptions.use_api_error_info ? errJson : undefined
+                            const msg = httpErrorStatusHandle(response, errObj) // 处理错误状态码
+                            if (msg) {
+                                handleMessage?.error?.(msg)
+                            }
+                        }
+
+
+                        return Promise.reject(errJson)
                     } catch {
                         return Promise.reject([response, '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取'])
                     }
@@ -409,10 +419,10 @@ export const newFetchRequest = ({
 /***
  * @description: 处理异常
  * @param response
- * @param useApiError
+ * @param errObj
  * @return string
  */
-export async function httpErrorStatusHandle(response: Response, useApiError?: boolean) {
+export function httpErrorStatusHandle(response: Response, errObj?: unknown) {
     let msg = ''
     if (response.status) {
         switch (response.status) {
@@ -462,18 +472,17 @@ export async function httpErrorStatusHandle(response: Response, useApiError?: bo
                 msg = '异常问题，请联系管理员！'
         }
     }
-    if (useApiError) {
+    if (errObj) {
         try {
-            const error = await response.json()
-            if (error.message) {
-                msg = error.message
-            } else if (error.error) {
-                msg = error.error
-            } else if (error.detail) {
-                msg = error.detail
+            if (errObj.message) {
+                msg = errObj.message
+            } else if (errObj.error) {
+                msg = errObj.error
+            } else if (errObj.detail) {
+                msg = errObj.detail
             }
         } catch (e) {
-            console.log(e, '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取')
+            console.log(e)
         }
     }
     return msg
