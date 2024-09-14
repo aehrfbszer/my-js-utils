@@ -296,7 +296,7 @@ export const newFetchRequest = ({
           } catch (e) {
             const text = '返回的不是json格式，考虑设置responseIsJson为false'
             console.error(text)
-            console.group()
+            console.groupCollapsed()
             console.log(e)
             console.groupEnd()
             handleMessage?.error?.(text)
@@ -332,7 +332,7 @@ export const newFetchRequest = ({
             console.error(
               '错误不是json,且已经用了json方法，数据流被消耗，无法再次用类似text等方法读取'
             )
-            console.group()
+            console.groupCollapsed()
             console.log(e)
             console.groupEnd()
             return Promise.reject(new Error('刷新token失败'))
@@ -435,7 +435,7 @@ export const newFetchRequest = ({
         }
       }
     } catch (error: unknown) {
-      console.group()
+      console.groupCollapsed()
       console.error('请求失败了，取消请求(超时、重复)与网络错误是正常的，无法处理')
       console.error(error)
       console.error('其他情况不是预期的错误，需要开发者注意')

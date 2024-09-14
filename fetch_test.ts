@@ -33,6 +33,26 @@ resetLoadingTool({
   },
 })
 
+const uuu = () => {
+  mainFetch(
+    {
+      url: '/x-www-form-urlencoded',
+      method: 'post',
+      data: new URLSearchParams({
+        dsa: 'greg',
+        gf: '🌙'
+      })
+    }
+  ).then(
+    res => {
+      console.log(res, 'FF');
+
+    }
+  )
+}
+
+uuu()
+
 const query = () =>
   mainFetch(
     {
