@@ -359,12 +359,14 @@ export const newFetchRequest = ({
             // 进到if里，说明已经在尝试刷新了
             if (arr) {
               // 返回一个Promise，让外部代码保持pending状态，让外部代码无感知，认为只是一次请求等久一点而已，并没有重试
-              return new Promise((resolve) => {
-                // arr中存待执行的请求（在arr中请求执行后，返回的请求结果会被resolve出来，外部代码无感知）
-                arr.push(() => {
-                  resolve(onceAgainRequest())
-                })
+              const { promise, resolve } = Promise.withResolvers()
+
+              // arr中存待执行的请求（在arr中请求执行后，返回的请求结果会被resolve出来，外部代码无感知）
+              arr.push(() => {
+                resolve(onceAgainRequest())
               })
+
+              return promise
             }
             // 进到else里，说明这个请求是第一个401请求，此处来刷新token
             else {
