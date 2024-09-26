@@ -3,7 +3,7 @@ const removeAllItem = () => {
   sessionStorage.clear()
 }
 
-export interface EachRequestCustomOptions {
+export interface EachRequestCustomOptions<T extends boolean = true> {
   /**【默认：false】 是否开启取消进行中的重复请求(舍弃旧的,舍弃时报error), 默认为 false，默认判断依据为url，method, params，data相同为重复*/
   repeat_request_cancel: boolean
 
@@ -29,7 +29,7 @@ export interface EachRequestCustomOptions {
   withoutToken: boolean
 
   /** 【默认：true】认为返回数据是json，解析json数据后返回，否则不处理直接返回原始response */
-  responseIsJson: boolean
+  responseIsJson: T
 }
 
 type Method =
@@ -87,6 +87,12 @@ export interface FetchConfig {
 
   [key: string]: unknown
 }
+const reloadPage = () => {
+  removeAllItem()
+  window.location.href = `${window.location.origin}/login`
+  location.reload()
+  throw new Error('无法处理，刷新页面，这个错误不应该log出来')
+}
 
 export const newFetchRequest = ({
   baseUrl,
@@ -101,6 +107,7 @@ export const newFetchRequest = ({
     loginNeedToken: false,
     refreshTokenNeedToken: true,
   },
+  panicOrRestart = reloadPage,
 }: {
   baseUrl: string
   timeout?: number
@@ -124,6 +131,7 @@ export const newFetchRequest = ({
     loginNeedToken: false
     refreshTokenNeedToken: true
   }
+  panicOrRestart?: () => never
 }) => {
   const resetLoadingTool = (instance: {
     start?: () => void
@@ -157,15 +165,15 @@ export const newFetchRequest = ({
     noTokenUrls.push(refreshTokenUrl.fetchConfig.url)
   }
 
-  async function mainFetch(
+  async function mainFetch<T extends boolean = true>(
     fetchConfig: FetchConfig,
-    customOptions?: Partial<EachRequestCustomOptions>,
+    customOptions?: Partial<EachRequestCustomOptions<T>>,
     count = 0
-  ): Promise<unknown> {
+  ): Promise<T extends true ? unknown : Response> {
     const controller = new AbortController()
     const signal = controller.signal
 
-    const myOptions: EachRequestCustomOptions = Object.assign(
+    const myOptions: EachRequestCustomOptions<T> = Object.assign(
       {
         repeat_request_cancel: false,
         loading: true,
@@ -359,7 +367,8 @@ export const newFetchRequest = ({
             // 进到if里，说明已经在尝试刷新了
             if (arr) {
               // 返回一个Promise，让外部代码保持pending状态，让外部代码无感知，认为只是一次请求等久一点而已，并没有重试
-              const { promise, resolve } = Promise.withResolvers()
+              const { promise, resolve } =
+                Promise.withResolvers<T extends true ? unknown : Response>()
 
               // arr中存待执行的请求（在arr中请求执行后，返回的请求结果会被resolve出来，外部代码无感知）
               arr.push(() => {
@@ -372,38 +381,32 @@ export const newFetchRequest = ({
             else {
               const pendingArr: Array<() => void> = []
               pendingArrMap.set(token, pendingArr)
-              return mainFetch(refreshTokenUrl.fetchConfig)
-                .then((res) => {
-                  refreshTokenUrl.setToken(res)
-                  // const oldArr = pendingArrMap.get(token)
-                  // oldArr?.forEach((cb) => {
-                  //     cb()
-                  // })
-                  pendingArr.forEach((cb) => {
-                    cb()
-                  })
-                  pendingArrMap.delete(token)
-                  // 把这个第一个401请求返回
-                  return onceAgainRequest()
+
+              try {
+                const tokenRes = await mainFetch(refreshTokenUrl.fetchConfig)
+                refreshTokenUrl.setToken(tokenRes)
+                // const oldArr = pendingArrMap.get(token)
+                // oldArr?.forEach((cb) => {
+                //     cb()
+                // })
+                pendingArr.forEach((cb) => {
+                  cb()
                 })
-                .catch((e) => {
-                  console.log(e)
-                  handleMessage?.error?.('登录失效')
-                  removeAllItem()
-                  window.location.href = `${window.location.origin}/login`
-                  // 刷新，内存释放
-                  location.reload()
-                })
+                pendingArrMap.delete(token)
+                // 把这个第一个401请求返回
+                return onceAgainRequest()
+              } catch (e) {
+                console.log(e)
+                handleMessage?.error?.('登录失效')
+                return panicOrRestart()
+              }
             }
           }
           // 超过3次，需要前端兜底，防止无限重试，直接退出登录
           else {
             console.error('多次刷新token成功，但接口仍是401')
             handleMessage?.error?.('登录失效')
-            removeAllItem()
-            window.location.href = `${window.location.origin}/login`
-            // 刷新，内存释放
-            location.reload()
+            return panicOrRestart()
           }
         }
         // 下面的else里面是接口返回的普通错误，直接外抛给外部代码
@@ -421,9 +424,9 @@ export const newFetchRequest = ({
             if (myOptions.error_message_show) {
               // 当成obj，具体逻辑让后面处理
               const errObj = myOptions.use_api_error_info ? errJson : undefined
-              const msg = httpErrorStatusHandle(response, errObj) // 处理错误状态码
+              const msg = httpErrorStatusHandle(response, errObj, panicOrRestart) // 处理错误状态码
               if (msg) {
-                handleMessage?.error?.(msg)
+                handleMessage?.error?.(`【${response.status}】${msg}`)
               }
             }
 
@@ -471,7 +474,11 @@ export const newFetchRequest = ({
  * @param errObj
  * @return string
  */
-export function httpErrorStatusHandle(response: Response, errObj?: unknown) {
+export function httpErrorStatusHandle(
+  response: Response,
+  errObj?: unknown,
+  panicOrRestart?: () => never
+) {
   let msg = ''
   if (response.status) {
     switch (response.status) {
@@ -484,8 +491,7 @@ export function httpErrorStatusHandle(response: Response, errObj?: unknown) {
       case 401:
         // 已经在上面的代码处理了，进不到这里
         msg = '您未登录，或者登录已经超时，请先登录！'
-        removeAllItem()
-        window.location.href = `${window.location.origin}/login?time=${new Date().getTime()}`
+        if (panicOrRestart) return panicOrRestart?.()
         break
       case 403:
         msg = '您没有权限操作！'
