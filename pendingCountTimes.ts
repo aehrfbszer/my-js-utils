@@ -1,14 +1,9 @@
-// const pendingCountTimes = (count = 3) => {
-//   const generator: Array<unknown> = []
+type pendingTuple = [fn: () => unknown, resolve: (value: unknown) => void, tryCount: number]
 
-//   const generatorOne = (...args: unknown[]) => {}
-
-//   return {}
-// }
 class AutoPendingRetry {
-  static pendingMap = new WeakMap<symbol, Array<() => unknown>>()
+  static pendingMap = new WeakMap<AutoPendingRetry, Array<pendingTuple>>()
   #count: number
-  #syl: symbol
+  #pendingArr: Array<pendingTuple>
   needPending?: (res: unknown) => boolean
   _errNeedRetry = false
   constructor(count = 3, retryWhen?: (res: unknown) => boolean, errNeedRetry = false) {
@@ -22,47 +17,60 @@ class AutoPendingRetry {
     this.#count = count
     this.needPending = retryWhen
     this._errNeedRetry = errNeedRetry
-    this.#syl = Symbol()
+    this.#pendingArr = []
+    AutoPendingRetry.pendingMap.set(this, this.#pendingArr)
   }
 
-  async generatorOne(fn: () => unknown) {
-    const arr = AutoPendingRetry.pendingMap.get(this.#syl) ?? []
-
+  async generatorOne(
+    fn: () => unknown,
+    options: {
+      isFreshContext: boolean
+      extraHandleIfFresh?: (data: unknown) => boolean
+    } = {
+      isFreshContext: true,
+    },
+    tryTimes = 0
+  ) {
     let res
+
+    const putRetry = () => {
+      const { promise, resolve } = Promise.withResolvers()
+      this.#pendingArr.push([fn, resolve, tryTimes + 1])
+
+      res = promise
+    }
+
     try {
       res = await fn()
+
+      if (options.extraHandleIfFresh?.(res) ?? options.isFreshContext) this.doRetry(res)
+
       if (this.needPending?.(res)) {
-        const { promise, resolve } = Promise.withResolvers()
-        arr.push(() => resolve(fn()))
-        res = promise
+        putRetry()
       }
     } catch (e) {
       console.log(e)
       if (this._errNeedRetry) {
-        const { promise, resolve } = Promise.withResolvers()
-        arr.push(() => resolve(fn()))
-        res = promise
+        putRetry()
       }
-    }
-    if (!AutoPendingRetry.pendingMap.has(this.#syl)) {
-      AutoPendingRetry.pendingMap.set(this.#syl, arr)
     }
     return res
   }
 
+  doRetry(
+    newContext: unknown,
+    handleFun: (context: unknown, t: pendingTuple) => void = (_, tuple) => {
+      const [fn, resolve, count] = tuple
+      if (this.#count > count) {
+        resolve(this.generatorOne(fn, { isFreshContext: false }, count))
+      }
+    }
+  ) {
+    const arr = this.#pendingArr
+    this.#pendingArr = []
 
-  doRetry(freshRes:unknown,handleFun:(freshRes:unknown,oldFun:()=>void,count:number)=>void){
-    const arr = AutoPendingRetry.pendingMap.get(this.#syl) ?? []
-
-  
-    arr.forEach(
-        item=>{
-            const newFun = handleFun(freshRes,item,)
-
-        }
-    )
+    arr.forEach((item) => {
+      handleFun(newContext, item)
+    })
   }
-
 }
-
-new AutoPendingRetry()
