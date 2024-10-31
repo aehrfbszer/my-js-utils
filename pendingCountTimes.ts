@@ -1,6 +1,6 @@
 type pendingTuple = [fn: () => unknown, resolve: (value: unknown) => void, tryCount: number]
 
-class AutoPendingRetry {
+export class AutoPendingRetry {
   static pendingMap = new WeakMap<AutoPendingRetry, Array<pendingTuple>>()
   #count: number
   #pendingArr: Array<pendingTuple>
