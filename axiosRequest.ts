@@ -1,3 +1,4 @@
+// axios版应该有不少问题，但我放弃维护了
 import type { AxiosRequestConfig, Canceler } from 'axios'
 import axios from 'axios'
 
