@@ -1,4 +1,4 @@
-export const TOKEN = 'token'
+export const TOKEN = "token";
 
 /**
  * @description: 存储数据
@@ -6,25 +6,22 @@ export const TOKEN = 'token'
  * @param {object | string | number} value
  */
 export const setItem = (key: string, value: object | string | number) => {
-  value = JSON.stringify(value)
-  localStorage.setItem(key, value)
-}
+  value = JSON.stringify(value);
+  localStorage.setItem(key, value);
+};
 
-/**
- * @description: 获取数据
- * @param {string} key
- * @return {*}
- */
-export const getItem = (key: string): object | string | number | null => {
-  const data = localStorage.getItem(key)
-  if (data) {
-    try {
-      return JSON.parse(data)
-    } catch {
-      return data
-    }
-  }
-  return data
+export function getStorageValue<T>(key: string, defaultValue: T) {
+  // getting stored value
+
+  const nil = defaultValue ?? null;
+
+  const saved = localStorage.getItem(key);
+
+  console.log("获取", saved, nil);
+
+  if (saved === null) return nil;
+  const initial = JSON.parse(saved);
+  return initial ?? nil;
 }
 
 /**
@@ -32,12 +29,12 @@ export const getItem = (key: string): object | string | number | null => {
  * @param {string} key
  */
 export const removeItem = (key: string) => {
-  localStorage.removeItem(key)
-}
+  localStorage.removeItem(key);
+};
 
 /**
  * @description: 清空缓存
  */
 export const removeAllItem = () => {
-  localStorage.clear()
-}
+  localStorage.clear();
+};

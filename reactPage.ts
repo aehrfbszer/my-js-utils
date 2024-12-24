@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { PaginationProps } from 'antd/es/pagination/Pagination'
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { PaginationProps } from "antd/es/pagination/Pagination";
 
-type MorePageOptionType = Omit<PaginationProps, 'current' | 'total' | 'pageSize' | 'onChange'>
+type MorePageOptionType = Omit<
+  PaginationProps,
+  "current" | "total" | "pageSize" | "onChange"
+>;
 
 export type initPageType = {
-  current: number
-  total: number
-  pageSize?: number
-  morePageOptions?: true | MorePageOptionType
-}
+  current: number;
+  total: number;
+  pageSize?: number;
+  morePageOptions?: true | MorePageOptionType;
+};
 
 /**
  * 适配的是Ant Design。
@@ -21,29 +24,29 @@ export type initPageType = {
  */
 export const usePageChange = (
   initPage: initPageType,
-  doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>
+  doRequest: (page: number, pageSize: number) => Promise<Awaited<number>>,
 ) => {
-  const tempPageSize = useRef(initPage.pageSize ?? 10)
+  const tempPageSize = useRef(initPage.pageSize ?? 10);
   const [pagination, setPagination] = useState({
     current: initPage.current,
     total: initPage.total,
     pageSize: initPage.pageSize ?? 10,
-  })
+  });
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    tempPageSize.current = pagination.pageSize
-  }, [pagination.pageSize])
+    tempPageSize.current = pagination.pageSize;
+  }, [pagination.pageSize]);
 
   const handleChange = useCallback(
     (newPage: number, newPageSize?: number) => {
-      let current = newPage
-      const pageSize = newPageSize ?? tempPageSize.current
+      let current = newPage;
+      const pageSize = newPageSize ?? tempPageSize.current;
       if (pageSize !== tempPageSize.current) {
-        current = initPage.current
+        current = initPage.current;
       }
-      setLoading(true)
+      setLoading(true);
       doRequest(current, pageSize)
         .then((total) => {
           setPagination((prevState) => ({
@@ -51,24 +54,24 @@ export const usePageChange = (
             pageSize,
             current,
             total,
-          }))
+          }));
         })
         .catch((e) => {
-          console.log(e, '翻页失败')
+          console.log(e, "翻页失败");
         })
         .finally(() => {
-          setLoading(false)
-        })
+          setLoading(false);
+        });
     },
-    [doRequest, initPage]
-  )
+    [doRequest, initPage],
+  );
 
   const resetPageAndTriggerRequest = useCallback(
     () => handleChange(initPage.current, initPage.pageSize),
-    [handleChange, initPage]
-  )
+    [handleChange, initPage],
+  );
 
-  let morePagination: MorePageOptionType = {}
+  let morePagination: MorePageOptionType = {};
 
   if (initPage.morePageOptions) {
     if (initPage.morePageOptions === true) {
@@ -77,9 +80,9 @@ export const usePageChange = (
         showQuickJumper: true,
         showTotal: (total: number) => `共 ${total} 条数据`,
         pageSizeOptions: [10, 20, 30, 40],
-      }
+      };
     } else {
-      morePagination = initPage.morePageOptions
+      morePagination = initPage.morePageOptions;
     }
   }
 
@@ -92,9 +95,12 @@ export const usePageChange = (
     handleChange,
     resetPageAndTriggerRequest,
     loading,
-  }
-}
-export type autoPageType = ReturnType<typeof usePageChange>
-export type paginationType = Pick<autoPageType, 'pagination'>
-export type handleChangeType = Pick<autoPageType, 'handleChange'>
-export type resetPageAndTriggerRequestType = Pick<autoPageType, 'resetPageAndTriggerRequest'>
+  };
+};
+export type autoPageType = ReturnType<typeof usePageChange>;
+export type paginationType = Pick<autoPageType, "pagination">;
+export type handleChangeType = Pick<autoPageType, "handleChange">;
+export type resetPageAndTriggerRequestType = Pick<
+  autoPageType,
+  "resetPageAndTriggerRequest"
+>;

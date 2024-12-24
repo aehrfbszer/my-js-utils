@@ -360,8 +360,7 @@ export const newFetchRequest = ({
             console.groupEnd();
             return Promise.reject(new Error("刷新token失败"));
           }
-        }
-        // 接口返回401，说明信息过期，尝试去刷新token
+        } // 接口返回401，说明信息过期，尝试去刷新token
         else if (response.status === 401) {
           // 这里的情况count一般都是0，如果count大于0，那就是刷新token成功了，但请求接口还是401，说明count大于0是后端逻辑错误
           if (count < 3) {
@@ -383,8 +382,9 @@ export const newFetchRequest = ({
             // 进到if里，说明已经在尝试刷新了
             if (arr) {
               // 返回一个Promise，让外部代码保持pending状态，让外部代码无感知，认为只是一次请求等久一点而已，并没有重试
-              const { promise, resolve } =
-                Promise.withResolvers<T extends true ? U : Response>();
+              const { promise, resolve } = Promise.withResolvers<
+                T extends true ? U : Response
+              >();
 
               // arr中存待执行的请求（在arr中请求执行后，返回的请求结果会被resolve出来，外部代码无感知）
               arr.push(() => {
@@ -392,8 +392,7 @@ export const newFetchRequest = ({
               });
 
               return promise;
-            }
-            // 进到else里，说明这个请求是第一个401请求，此处来刷新token
+            } // 进到else里，说明这个请求是第一个401请求，此处来刷新token
             else {
               const pendingArr: Array<() => void> = [];
               pendingArrMap.set(token, pendingArr);
@@ -417,15 +416,13 @@ export const newFetchRequest = ({
                 return panicOrRestart();
               }
             }
-          }
-          // 超过3次，需要前端兜底，防止无限重试，直接退出登录
+          } // 超过3次，需要前端兜底，防止无限重试，直接退出登录
           else {
             console.error("多次刷新token成功，但接口仍是401");
             handleMessage?.error?.("登录失效");
             return panicOrRestart();
           }
-        }
-        // 下面的else里面是接口返回的普通错误，直接外抛给外部代码
+        } // 下面的else里面是接口返回的普通错误，直接外抛给外部代码
         else {
           if (myOptions.loading) {
             if (LoadingInstance._count === 0) {
@@ -553,8 +550,8 @@ export function httpErrorStatusHandle(
   if (errObj) {
     if (typeof errObj === "object") {
       const obj = errObj as Record<string, unknown>;
-      const text =
-        obj["errorMessage"] || obj["message"] || obj["msg"] || obj["error"];
+      const text = obj["errorMessage"] || obj["message"] || obj["msg"] ||
+        obj["error"];
       if (text) {
         msg = typeof text === "string" ? text : JSON.stringify(text);
       }

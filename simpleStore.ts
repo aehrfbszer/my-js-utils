@@ -17,23 +17,21 @@ const isFun = (v: unknown) => typeof v === "function";
  */
 export class simpleStore<T> {
   #value: T;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // deno-lint-ignore no-explicit-any
   static #allStore: Record<string | symbol, simpleStore<any>> = {};
   #pageSourceMap: Record<
     string | symbol,
     [
       proxySetFn: GlobalUpdater<T>["setVal"],
-      uniqueKey: symbol,
       rawSetFn: GlobalUpdater<T>["setVal"],
     ]
   > = {};
 
   static #globalUpdater: Allocator[] = [];
 
-  innerSet!: GlobalUpdater<T>["setVal"];
-  innerGet?: GlobalUpdater<T>["getVal"];
+  #innerSet!: GlobalUpdater<T>["setVal"];
+  #innerGet?: GlobalUpdater<T>["getVal"];
 
-  #onceAction: symbol = Symbol();
   #isUpdate = false;
 
   // 注册全局分配器，返回当前分配器的下标，即全局分配器数量减一
@@ -51,7 +49,7 @@ export class simpleStore<T> {
   }
 
   // proxy 不能是全局的，是绑定框架的运行机制，需要和生命周期绑在一起
-  doProxy(allocatorIndex?: number) {
+  #doProxy(allocatorIndex?: number) {
     const updater = simpleStore.#globalUpdater[allocatorIndex ?? 0];
     if (!updater) throw new Error("未注册，请在(app|main).(tx|tsx)中注册");
     const proxySome = updater(this.#value);
@@ -62,11 +60,13 @@ export class simpleStore<T> {
     console.log("pageKey", pageKey);
     const oldDoneArr = this.#pageSourceMap[pageKey];
 
-    const getValue = () => this.innerGet?.() ?? this.#value;
+    const getValue = () => this.#innerGet?.() ?? this.#value;
 
-    if (oldDoneArr) {
+    if (oldDoneArr?.[1] === this.#innerSet) {
       return [getValue, oldDoneArr[0]] as const;
     }
+
+    Reflect.deleteProperty(this.#pageSourceMap, pageKey);
 
     const mySet =
       (theSetFn: GlobalUpdater<T>["setVal"]) => (v: SetFnParam<T>) => {
@@ -75,13 +75,12 @@ export class simpleStore<T> {
         this.#value = newVal;
         theSetFn(newVal);
         if (!this.#isUpdate) {
-          this.#onceAction = Symbol();
           this.#isUpdate = true;
           console.log("一次用户操作-----------------------------------");
           for (const pKey of Reflect.ownKeys(this.#pageSourceMap)) {
-            const [fn, syl, rawFn] = this.#pageSourceMap[pKey];
+            const [fn, rawFn] = this.#pageSourceMap[pKey];
 
-            const done = syl === this.#onceAction || rawFn === theSetFn;
+            const done = rawFn === theSetFn;
 
             console.log(
               "查询所有同一个store，包括触发者 ---33",
@@ -93,20 +92,15 @@ export class simpleStore<T> {
             console.log("进行更新其他未被更新的 ---44");
 
             fn(newVal);
-            this.#pageSourceMap[pKey][1] = this.#onceAction;
           }
           this.#isUpdate = false;
         }
       };
-    const finalSetFn = mySet(this.innerSet);
+    const finalSetFn = mySet(this.#innerSet);
     console.log("重新进行魔法的创建");
 
     const weakKey = [getValue, finalSetFn] as const;
-    this.#pageSourceMap[pageKey] = [
-      finalSetFn,
-      this.#onceAction,
-      this.innerSet,
-    ];
+    this.#pageSourceMap[pageKey] = [finalSetFn, this.#innerSet];
 
     return weakKey;
   }
@@ -118,17 +112,17 @@ export class simpleStore<T> {
       proxyVal: unknown,
     ) => [GlobalUpdater<T>["getVal"], GlobalUpdater<T>["setVal"]],
   ) => {
-    const proxySome = this.doProxy(allocatorIndex);
+    const proxySome = this.#doProxy(allocatorIndex);
     if (proxyLogic) {
-      [this.innerGet, this.innerSet] = proxyLogic(proxySome);
+      [this.#innerGet, this.#innerSet] = proxyLogic(proxySome);
       return this.#done(pageKey);
     }
     switch ((proxySome as { length: number }).length) {
       case 2:
         {
           const maybeReact = proxySome as [T, GlobalUpdater<T>["setVal"]];
-          this.innerSet = maybeReact[1];
-          this.innerGet = () => maybeReact[0];
+          this.#innerSet = maybeReact[1];
+          this.#innerGet = () => maybeReact[0];
         }
         break;
       default: {
@@ -137,9 +131,10 @@ export class simpleStore<T> {
           set value(_: S);
         };
         const maybeVue = proxySome as unknown as VueType<T>;
-        this.innerSet = (v) =>
-          (maybeVue.value = isFun(v) ? v(maybeVue.value) : v);
-        this.innerGet = () => maybeVue.value;
+        this.#innerSet = (
+          v,
+        ) => (maybeVue.value = isFun(v) ? v(maybeVue.value) : v);
+        this.#innerGet = () => maybeVue.value;
       }
     }
 

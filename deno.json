@@ -1,0 +1,19 @@
+{
+  "tasks": {
+    "dev": "deno run --watch main.ts"
+  },
+  "compilerOptions": {
+    "types": [
+      "react",
+      "@types/react"
+    ]
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "@types/react": "npm:@types/react@^19.0.2",
+    "antd": "npm:antd@^5.22.6",
+    "axios": "npm:axios@^1.7.9",
+    "react": "npm:react@^19.0.0",
+    "vue": "npm:vue@^3.5.13"
+  }
+}
