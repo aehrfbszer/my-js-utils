@@ -1,3 +1,4 @@
+// @ts-types="npm:@types/react"
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PaginationProps } from "antd/es/pagination/Pagination";
 
